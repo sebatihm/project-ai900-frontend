@@ -46,6 +46,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const isPublicInvoiceAnalyzer =
+    pathname === "/invoice-analyzer" ||
+    pathname.startsWith("/invoice-analyzer/");
+
+  if (isPublicInvoiceAnalyzer) {
+    return NextResponse.next();
+  }
+
   if (!authenticated) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${search}`);

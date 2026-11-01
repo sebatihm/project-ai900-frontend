@@ -146,3 +146,23 @@ export type InvoiceAnalysis = {
   items: InvoiceItem[];
   createdAt: string;
 };
+
+export type SupplierSummary = {
+  id: string;
+  name: string;
+  rfc: string;
+  email: string | null;
+  invoiceAnalyzerUrl: string;
+};
+
+export type SupplierDetail = SupplierSummary;
+
+export type PublicInvoiceAnalysis = Omit<
+  InvoiceAnalysis,
+  | "originalFileName"
+  | "sha256"
+  | "container"
+  | "blobPath"
+  | "readUrl"
+  | "minConfidence"
+>;

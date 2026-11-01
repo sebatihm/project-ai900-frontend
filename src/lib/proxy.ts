@@ -20,9 +20,15 @@ const PUBLIC_BACKEND_PATHS = new Set(["chat/public"]);
 export type ProxyOptions = {
   publicPath?: boolean;
   preserveResponseHeaders?: string[];
+  extraHeaders?: Record<string, string>;
+  transformJson?: (body: unknown) => unknown;
 };
 
-function buildHeaders(request: Request, token: string | null) {
+function buildHeaders(
+  request: Request,
+  token: string | null,
+  extraHeaders?: Record<string, string>,
+) {
   const headers = new Headers();
   request.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
@@ -32,6 +38,9 @@ function buildHeaders(request: Request, token: string | null) {
   });
   if (token) {
     headers.set("authorization", `Bearer ${token}`);
+  }
+  for (const [name, value] of Object.entries(extraHeaders ?? {})) {
+    headers.set(name, value);
   }
   return headers;
 }
@@ -55,7 +64,11 @@ export async function forwardRequest(
 
   const init = {
     method,
-    headers: buildHeaders(request, options.publicPath ? null : token),
+    headers: buildHeaders(
+      request,
+      options.publicPath ? null : token,
+      options.extraHeaders,
+    ),
     body: hasBody ? request.body : undefined,
     duplex: hasBody ? "half" : undefined,
     redirect: "manual",
@@ -72,6 +85,18 @@ export async function forwardRequest(
     );
   }
 
+  const contentType = upstream.headers.get("content-type") ?? "";
+  const shouldTransformJson =
+    options.transformJson !== undefined &&
+    upstream.ok &&
+    contentType.includes("application/json");
+
+  let body: BodyInit | null = upstream.body;
+  if (shouldTransformJson) {
+    const parsed: unknown = await upstream.json();
+    body = JSON.stringify(options.transformJson!(parsed));
+  }
+
   const responseHeaders = new Headers();
   for (const name of [
     "content-type",
@@ -79,6 +104,7 @@ export async function forwardRequest(
     "content-length",
     "cache-control",
   ]) {
+    if (shouldTransformJson && name === "content-length") continue;
     const value = upstream.headers.get(name);
     if (value) responseHeaders.set(name, value);
   }
@@ -87,12 +113,12 @@ export async function forwardRequest(
     if (value) responseHeaders.set(name, value);
   }
 
-  const response = new NextResponse(upstream.body, {
+  const response = new NextResponse(body, {
     status: upstream.status,
     headers: responseHeaders,
   });
 
-  if (upstream.status === 401) {
+  if (!options.publicPath && upstream.status === 401) {
     response.cookies.set({
       name: SESSION_COOKIE,
       value: "",
