@@ -23,7 +23,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: "/chat",
+    href: "/assistant",
     label: "Chat IA",
     icon: "bi-chat-dots",
     visible: () => true,

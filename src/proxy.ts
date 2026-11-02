@@ -41,14 +41,15 @@ export function proxy(request: NextRequest) {
 
   if (isLogin) {
     if (authenticated) {
-      return NextResponse.redirect(new URL("/chat", request.url));
+      return NextResponse.redirect(new URL("/assistant", request.url));
     }
     return NextResponse.next();
   }
 
   const isPublicInvoiceAnalyzer =
     pathname === "/invoice-analyzer" ||
-    pathname.startsWith("/invoice-analyzer/");
+    pathname.startsWith("/invoice-analyzer/") ||
+    pathname.startsWith("/chat/invoice-analyzer/");
 
   if (isPublicInvoiceAnalyzer) {
     return NextResponse.next();

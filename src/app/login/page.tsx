@@ -11,9 +11,9 @@ type LoginState = {
 };
 
 function safeNext(value: string | null): string {
-  if (!value) return "/chat";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/chat";
-  if (value.startsWith("/login")) return "/chat";
+  if (!value) return "/assistant";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/assistant";
+  if (value.startsWith("/login")) return "/assistant";
   return value;
 }
 
@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [state, setState] = useState<LoginState>({
-    next: "/chat",
+    next: "/assistant",
     reason: null,
   });
 
