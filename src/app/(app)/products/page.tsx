@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "@/components/access-denied";
 import { useAuth } from "@/components/auth-context";
 import { Modal } from "@/components/modal";
@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/format";
 import { canManageProducts } from "@/lib/permissions";
 import type {
   ApiResponse,
+  CategorySummary,
   PaginatedResponse,
   ProductSummary,
 } from "@/lib/types";
@@ -41,9 +42,10 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<ProductSummary | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,7 +55,6 @@ export default function ProductsPage() {
         offset: String(offset),
         limit: String(limit),
       });
-      if (search.trim()) params.set("search", search.trim());
       const payload = await apiRequest<
         ApiResponse<PaginatedResponse<ProductSummary>>
       >(`/api/product?${params.toString()}`);
@@ -64,31 +65,48 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [offset, limit, search]);
+  }, [offset, limit]);
 
   useEffect(() => {
     if (!user || !canManageProducts(user.role)) return;
     void load();
   }, [load, user]);
 
+  useEffect(() => {
+    if (!user || !canManageProducts(user.role)) return;
+    let active = true;
+    apiRequest<ApiResponse<PaginatedResponse<CategorySummary>>>(
+      "/api/category?offset=0&limit=100",
+    )
+      .then((payload) => {
+        if (active) setCategories(payload.data.items);
+      })
+      .catch((caught) => {
+        if (active) setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (active) setCategoriesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const visibleProducts = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase();
+    if (!term) return products;
+    return products.filter(
+      (product) =>
+        product.name.toLocaleLowerCase().includes(term) ||
+        product.sku.toLocaleLowerCase().includes(term),
+    );
+  }, [products, search]);
+
   if (!user) return null;
   if (!canManageProducts(user.role)) return <AccessDenied />;
 
   function openCreate() {
-    setEditing(null);
     setForm(EMPTY_FORM);
-    setModalOpen(true);
-  }
-
-  function openEdit(product: ProductSummary) {
-    setEditing(product);
-    setForm({
-      sku: product.sku,
-      name: product.name,
-      categoryId: product.categoryId,
-      unit: product.unit,
-      price: String(product.price),
-    });
     setModalOpen(true);
   }
 
@@ -104,8 +122,8 @@ export default function ProductsPage() {
         unit: form.unit.trim(),
         price: Number(form.price),
       };
-      await apiRequest(editing ? `/api/product/${editing.id}` : "/api/product", {
-        method: editing ? "PUT" : "POST",
+      await apiRequest("/api/product", {
+        method: "POST",
         body: JSON.stringify(body),
       });
       setModalOpen(false);
@@ -143,7 +161,7 @@ export default function ProductsPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Productos"
-        description="Listado paginado con búsqueda y CRUD sobre ProductController. El plan no expone un endpoint de categorías, así que el UUID se captura manualmente."
+        description="Consulta los productos y administra su alta y eliminación."
         actions={
           <button type="button" className="btn btn-brand btn-sm" onClick={openCreate}>
             <i className="bi bi-plus-lg me-1" aria-hidden="true" />
@@ -184,7 +202,7 @@ export default function ProductsPage() {
               className="form-control"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Ej. café, LIM-001…"
+              placeholder="Ej. limpiador, LIM-001…"
             />
           </div>
           <div className="flex gap-2">
@@ -212,7 +230,7 @@ export default function ProductsPage() {
           <p className="text-sm text-[var(--muted)]">
             {loading
               ? "Cargando productos…"
-              : `${total} producto(s) · mostrando ${total === 0 ? 0 : offset + 1}–${pageEnd}`}
+              : `${visibleProducts.length} producto(s) encontrados en esta página · mostrando ${total === 0 ? 0 : offset + 1}–${pageEnd}`}
           </p>
           <div className="d-flex align-items-center gap-2">
             <label htmlFor="product-limit" className="text-sm text-[var(--muted)]">
@@ -253,14 +271,14 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {!loading && products.length === 0 && (
+              {!loading && visibleProducts.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-[var(--muted)]">
-                    No hay productos que coincidan.
+                    No hay productos que coincidan en los productos consultados.
                   </td>
                 </tr>
               )}
-              {products.map((product) => (
+              {visibleProducts.map((product) => (
                 <tr key={product.id}>
                   <td className="font-mono text-sm">{product.sku}</td>
                   <td className="font-semibold">{product.name}</td>
@@ -269,13 +287,6 @@ export default function ProductsPage() {
                   <td className="text-end">{formatMoney(product.price)}</td>
                   <td className="text-end">
                     <div className="inline-flex gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-brand"
-                        onClick={() => openEdit(product)}
-                      >
-                        Editar
-                      </button>
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-danger"
@@ -312,7 +323,7 @@ export default function ProductsPage() {
       </section>
 
       <Modal
-        title={editing ? "Editar producto" : "Nuevo producto"}
+        title="Nuevo producto"
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         footer={
@@ -369,11 +380,11 @@ export default function ProductsPage() {
             </div>
             <div>
               <label htmlFor="product-category" className="form-label">
-                Categoría (UUID) *
+                Categoría *
               </label>
-              <input
+              <select
                 id="product-category"
-                className="form-control"
+                className="form-select"
                 required
                 value={form.categoryId}
                 onChange={(event) =>
@@ -382,8 +393,19 @@ export default function ProductsPage() {
                     categoryId: event.target.value,
                   }))
                 }
-                placeholder="55555555-5555-4555-8555-000000000001"
-              />
+                disabled={categoriesLoading}
+              >
+                <option value="">
+                  {categoriesLoading
+                    ? "Cargando categorías…"
+                    : "Selecciona una categoría"}
+                </option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="product-unit" className="form-label">
@@ -419,11 +441,6 @@ export default function ProductsPage() {
               />
             </div>
           </div>
-          <p className="form-text">
-            Los UUID de categoría existen en el seed de datos del backend
-            (prefijo <code>55555555-5555-4555-8555-</code>). Si escribes uno
-            inexistente, el backend responderá con error de validación.
-          </p>
         </form>
       </Modal>
     </div>

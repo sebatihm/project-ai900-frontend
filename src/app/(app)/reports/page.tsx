@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AccessDenied } from "@/components/access-denied";
 import { PageHeader } from "@/components/page-header";
 import { useAuth } from "@/components/auth-context";
@@ -8,7 +8,12 @@ import { apiRequest, errorMessage } from "@/lib/client-api";
 import { downloadFile } from "@/lib/download";
 import { formatMoney, toProxyPath } from "@/lib/format";
 import { canGenerateReports } from "@/lib/permissions";
-import type { ReportSalesResponse } from "@/lib/types";
+import type {
+  ApiResponse,
+  BranchSummary,
+  PaginatedResponse,
+  ReportSalesResponse,
+} from "@/lib/types";
 
 export default function ReportsPage() {
   const { user } = useAuth();
@@ -21,6 +26,18 @@ export default function ReportsPage() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportSalesResponse | null>(null);
+  const [branches, setBranches] = useState<BranchSummary[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user || !canGenerateReports(user.role)) return;
+    apiRequest<ApiResponse<PaginatedResponse<BranchSummary>>>(
+      "/api/branch?offset=0&limit=100",
+    )
+      .then((payload) => setBranches(payload.data.items))
+      .catch((caught) => setError(errorMessage(caught)))
+      .finally(() => setBranchesLoading(false));
+  }, [user]);
 
   if (!user) return null;
   if (!canGenerateReports(user.role)) return <AccessDenied />;
@@ -85,18 +102,24 @@ export default function ReportsPage() {
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label htmlFor="branchId" className="form-label">
-                Sucursal (UUID, opcional)
+                Sucursal (opcional)
               </label>
-              <input
+              <select
                 id="branchId"
-                className="form-control"
+                className="form-select"
                 value={branchId}
                 onChange={(event) => setBranchId(event.target.value)}
-                placeholder="33333333-3333-4333-8333-000000000001"
-              />
-              <p className="form-text">
-                Ejemplo de sucursal demo: TST-CDMX con el UUID de arriba.
-              </p>
+                disabled={branchesLoading}
+              >
+                <option value="">
+                  {branchesLoading ? "Cargando sucursales…" : "Todas las sucursales"}
+                </option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

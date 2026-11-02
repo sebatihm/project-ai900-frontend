@@ -24,6 +24,8 @@ import type {
   ApiResponse,
   TicketDetail,
   TicketMessage,
+  OrderSummary,
+  UserSummary,
 } from "@/lib/types";
 
 type EditForm = {
@@ -55,6 +57,10 @@ export default function TicketDetailPage() {
     requiresHumanReview: false,
   });
   const [assignTo, setAssignTo] = useState("");
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [rating, setRating] = useState("");
   const [messageForm, setMessageForm] = useState({
     author: "EMPLOYEE",
@@ -88,6 +94,42 @@ export default function TicketDetailPage() {
     if (!user || !canManageTickets(user.role)) return;
     void load();
   }, [load, user]);
+
+  useEffect(() => {
+    if (!user || !["ADMIN", "BOSS"].includes(user.role)) {
+      setUsers([]);
+      return;
+    }
+
+    let active = true;
+    setUsersLoading(true);
+    apiRequest<ApiResponse<{ items: UserSummary[] }>>(
+      "/api/user?offset=0&limit=100&includeInactive=false",
+    )
+      .then((payload) => {
+        if (active) setUsers(payload.data.items);
+      })
+      .catch((caught) => {
+        if (active) setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (active) setUsersLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !canManageTickets(user.role)) return;
+    apiRequest<ApiResponse<{ items: OrderSummary[] }>>(
+      "/api/order?offset=0&limit=100",
+    )
+      .then((payload) => setOrders(payload.data.items))
+      .catch((caught) => setError(errorMessage(caught)))
+      .finally(() => setOrdersLoading(false));
+  }, [user]);
 
   if (!user) return null;
   if (!canManageTickets(user.role)) return <AccessDenied />;
@@ -546,20 +588,30 @@ export default function TicketDetailPage() {
         </div>
 
         <div className="space-y-5">
-          {canAssignTickets(user.role) && (
+          {canAssignTickets(user.role) &&
+            ["ADMIN", "BOSS"].includes(user.role) && (
             <section className="app-card p-5">
               <h2 className="text-lg font-semibold">Asignación</h2>
               <form onSubmit={assign} className="mt-3">
                 <label htmlFor="assign-to" className="form-label">
-                  Usuario asignado (UUID)
+                  Usuario asignado
                 </label>
-                <input
+                <select
                   id="assign-to"
                   className="form-control"
                   value={assignTo}
                   onChange={(event) => setAssignTo(event.target.value)}
-                  placeholder="Vacío para desasignar"
-                />
+                  disabled={usersLoading}
+                >
+                  <option value="">
+                    {usersLoading ? "Cargando usuarios…" : "Sin asignar"}
+                  </option>
+                  {users.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name} ({candidate.email})
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="submit"
                   className="btn btn-outline-brand mt-3 w-full"
@@ -672,11 +724,11 @@ export default function TicketDetailPage() {
             </div>
             <div>
               <label htmlFor="edit-order" className="form-label">
-                Pedido (UUID)
+                Pedido relacionado
               </label>
-              <input
+              <select
                 id="edit-order"
-                className="form-control"
+                className="form-select"
                 value={editForm.orderId}
                 onChange={(event) =>
                   setEditForm((current) => ({
@@ -684,7 +736,17 @@ export default function TicketDetailPage() {
                     orderId: event.target.value,
                   }))
                 }
-              />
+                disabled={ordersLoading}
+              >
+                <option value="">
+                  {ordersLoading ? "Cargando pedidos…" : "Sin pedido relacionado"}
+                </option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.code} — {order.customerName}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="edit-topic" className="form-label">

@@ -37,6 +37,39 @@ export type PaginatedResponse<T> = {
   limit: number;
 };
 
+export type CustomerSummary = {
+  id: string;
+  name: string;
+  type: string;
+  email: string;
+  phone: string;
+};
+
+export type OrderSummary = {
+  id: string;
+  code: string;
+  status: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  branchCode: string;
+  orderDate: string;
+  estimatedDeliveryDate: string;
+  total: number;
+};
+
+export type CategorySummary = {
+  id: string;
+  name: string;
+};
+
+export type BranchSummary = {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+};
+
 export type ChatMode = "internal" | "public";
 
 export type ChatResponse = {
@@ -144,6 +177,19 @@ export type InvoiceAnalysis = {
   blobPath: string;
   readUrl: string | null;
   items: InvoiceItem[];
+  createdAt: string;
+};
+
+export type InvoiceSummary = {
+  id: string;
+  status: "VALID" | "SUSPICIOUS" | "REJECTED";
+  suspicionScore: number;
+  supplierName: string;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  total: number | null;
+  currency: string | null;
+  originalFileName: string;
   createdAt: string;
 };
 

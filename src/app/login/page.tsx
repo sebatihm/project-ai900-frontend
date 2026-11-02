@@ -193,24 +193,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-8 rounded-xl border border-[var(--border)] bg-[#f8fafc] p-4 text-sm text-[var(--muted)]">
-            <p className="font-semibold text-[var(--foreground)]">
-              Credenciales de demostración
-            </p>
-            <p className="mt-1">
-              <code>admin@ai901.local</code> / <code>Admin@123</code>
-            </p>
-            <p className="mt-1">
-              Usuarios por rol (tras ejecutar el seed de demo):{" "}
-              <code>demo.boss@ai901.local</code>,{" "}
-              <code>demo.admin@ai901.local</code>,{" "}
-              <code>demo.branch@ai901.local</code>,{" "}
-              <code>demo.warehouse@ai901.local</code>,{" "}
-              <code>demo.support@ai901.local</code>. Contraseña:{" "}
-              <code>Demo@1234</code>.
-            </p>
-          </div>
         </section>
       </div>
     </main>

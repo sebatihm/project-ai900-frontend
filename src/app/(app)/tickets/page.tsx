@@ -16,7 +16,13 @@ import {
   TICKET_STATUS_LABELS,
   TICKET_TOPIC_LABELS,
 } from "@/lib/permissions";
-import type { ApiResponse, PaginatedResponse, TicketSummary } from "@/lib/types";
+import type {
+  ApiResponse,
+  CustomerSummary,
+  OrderSummary,
+  PaginatedResponse,
+  TicketSummary,
+} from "@/lib/types";
 
 type TicketForm = {
   customerId: string;
@@ -46,13 +52,6 @@ const EMPTY_FORM: TicketForm = {
 
 export default function TicketsPage() {
   const { user } = useAuth();
-  const [filters, setFilters] = useState({
-    status: "",
-    topic: "",
-    handledBy: "",
-    assignedToId: "",
-    customerId: "",
-  });
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(20);
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
@@ -62,20 +61,16 @@ export default function TicketsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<TicketForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [referencesLoading, setReferencesLoading] = useState(true);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    if (filters.status) params.set("status", filters.status);
-    if (filters.topic) params.set("topic", filters.topic);
-    if (filters.handledBy) params.set("handledBy", filters.handledBy);
-    if (filters.assignedToId.trim())
-      params.set("assignedToId", filters.assignedToId.trim());
-    if (filters.customerId.trim())
-      params.set("customerId", filters.customerId.trim());
     params.set("offset", String(offset));
     params.set("limit", String(limit));
     return params.toString();
-  }, [filters, offset, limit]);
+  }, [offset, limit]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +92,34 @@ export default function TicketsPage() {
     if (!user || !canManageTickets(user.role)) return;
     void load();
   }, [load, user]);
+
+  useEffect(() => {
+    if (!user || !canManageTickets(user.role)) return;
+    let active = true;
+    setReferencesLoading(true);
+    Promise.all([
+      apiRequest<ApiResponse<PaginatedResponse<CustomerSummary>>>(
+        "/api/customer?offset=0&limit=100",
+      ),
+      apiRequest<ApiResponse<PaginatedResponse<OrderSummary>>>(
+        "/api/order?offset=0&limit=100",
+      ),
+    ])
+      .then(([customerPayload, orderPayload]) => {
+        if (!active) return;
+        setCustomers(customerPayload.data.items);
+        setOrders(orderPayload.data.items);
+      })
+      .catch((caught) => {
+        if (active) setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (active) setReferencesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   if (!user) return null;
   if (!canManageTickets(user.role)) return <AccessDenied />;
@@ -146,7 +169,7 @@ export default function TicketsPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Tickets de soporte"
-        description="CRUD completo sobre TicketController. No existen filtros de “requiere revisión humana”, sentimiento ni “sin asignar” en el backend; puedes filtrarlos visualmente en la tabla."
+        description="Consulta, crea y da seguimiento a las solicitudes de ayuda de tus clientes."
         actions={
           <button
             type="button"
@@ -175,119 +198,6 @@ export default function TicketsPage() {
           </div>
         </div>
       )}
-
-      <section className="app-card mb-5 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div>
-            <label htmlFor="filter-status" className="form-label text-sm">
-              Estado
-            </label>
-            <select
-              id="filter-status"
-              className="form-select"
-              value={filters.status}
-              onChange={(event) => {
-                setOffset(0);
-                setFilters((current) => ({
-                  ...current,
-                  status: event.target.value,
-                }));
-              }}
-            >
-              <option value="">Todos</option>
-              {Object.entries(TICKET_STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filter-topic" className="form-label text-sm">
-              Tema
-            </label>
-            <select
-              id="filter-topic"
-              className="form-select"
-              value={filters.topic}
-              onChange={(event) => {
-                setOffset(0);
-                setFilters((current) => ({
-                  ...current,
-                  topic: event.target.value,
-                }));
-              }}
-            >
-              <option value="">Todos</option>
-              {Object.entries(TICKET_TOPIC_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filter-handled" className="form-label text-sm">
-              Atendido por
-            </label>
-            <select
-              id="filter-handled"
-              className="form-select"
-              value={filters.handledBy}
-              onChange={(event) => {
-                setOffset(0);
-                setFilters((current) => ({
-                  ...current,
-                  handledBy: event.target.value,
-                }));
-              }}
-            >
-              <option value="">Todos</option>
-              {Object.entries(HANDLED_BY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filter-assigned" className="form-label text-sm">
-              Asignado a (UUID)
-            </label>
-            <input
-              id="filter-assigned"
-              className="form-control"
-              value={filters.assignedToId}
-              onChange={(event) => {
-                setOffset(0);
-                setFilters((current) => ({
-                  ...current,
-                  assignedToId: event.target.value,
-                }));
-              }}
-              placeholder="UUID del usuario"
-            />
-          </div>
-          <div>
-            <label htmlFor="filter-customer" className="form-label text-sm">
-              Cliente (UUID)
-            </label>
-            <input
-              id="filter-customer"
-              className="form-control"
-              value={filters.customerId}
-              onChange={(event) => {
-                setOffset(0);
-                setFilters((current) => ({
-                  ...current,
-                  customerId: event.target.value,
-                }));
-              }}
-              placeholder="UUID del cliente"
-            />
-          </div>
-        </div>
-      </section>
 
       <section className="app-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
@@ -338,7 +248,7 @@ export default function TicketsPage() {
               {!loading && tickets.length === 0 && (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-[var(--muted)]">
-                    No hay tickets con esos filtros.
+                    No hay solicitudes de soporte disponibles.
                   </td>
                 </tr>
               )}
@@ -349,7 +259,7 @@ export default function TicketsPage() {
                       <span className="font-semibold">{ticket.subject}</span>
                       {ticket.requiresHumanReview && (
                         <span className="badge text-bg-warning mt-1 w-fit">
-                          Requiere revisión humana
+                          Atención especial
                         </span>
                       )}
                     </div>
@@ -440,11 +350,11 @@ export default function TicketsPage() {
         <form id="ticket-create-form" onSubmit={createTicket} className="grid gap-4">
           <div>
             <label htmlFor="ticket-customer" className="form-label">
-              Cliente (UUID) *
+              Cliente relacionado *
             </label>
-            <input
+            <select
               id="ticket-customer"
-              className="form-control"
+              className="form-select"
               required
               value={form.customerId}
               onChange={(event) =>
@@ -453,13 +363,17 @@ export default function TicketsPage() {
                   customerId: event.target.value,
                 }))
               }
-              placeholder="99999999-9999-4999-8999-000000000001"
-            />
-            <p className="form-text">
-              El backend no expone un listado de clientes permitido en este
-              plan. Usa un UUID existente; el ejemplo corresponde a Hotel Casa
-              Blanca del seed de datos.
-            </p>
+              disabled={referencesLoading}
+            >
+              <option value="">
+                {referencesLoading ? "Cargando clientes…" : "Selecciona un cliente"}
+              </option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -483,11 +397,11 @@ export default function TicketsPage() {
             </div>
             <div>
               <label htmlFor="ticket-order" className="form-label">
-                Pedido (UUID, opcional)
+                Pedido relacionado (opcional)
               </label>
-              <input
+              <select
                 id="ticket-order"
-                className="form-control"
+                className="form-select"
                 value={form.orderId}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -495,7 +409,17 @@ export default function TicketsPage() {
                     orderId: event.target.value,
                   }))
                 }
-              />
+                disabled={referencesLoading}
+              >
+                <option value="">
+                  {referencesLoading ? "Cargando pedidos…" : "Sin pedido relacionado"}
+                </option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.code} — {order.customerName}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="ticket-channel" className="form-label">
