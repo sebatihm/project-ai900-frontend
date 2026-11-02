@@ -7,6 +7,12 @@ export const metadata: Metadata = {
   title: "Río Claro · Asistente IA",
   description:
     "Frontend de demostración para el asistente de IA y los módulos de Río Claro.",
+  icons: {
+    icon: {
+      url: "/favicon.svg",
+      type: "image/svg+xml",
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
