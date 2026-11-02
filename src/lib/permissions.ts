@@ -32,6 +32,10 @@ export function canAnalyzeInvoices(role: RoleName): boolean {
   return ["ADMIN", "BOSS", "ADMIN_SUPPORT"].includes(role);
 }
 
+export function canManageSuppliers(role: RoleName): boolean {
+  return ["ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER"].includes(role);
+}
+
 export function canAssignTickets(role: RoleName): boolean {
   return ["ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER"].includes(role);
 }

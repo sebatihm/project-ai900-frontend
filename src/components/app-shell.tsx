@@ -8,6 +8,7 @@ import {
   canAnalyzeInvoices,
   canGenerateReports,
   canManageProducts,
+  canManageSuppliers,
   canManageTickets,
   ROLE_LABELS,
 } from "@/lib/permissions";
@@ -50,6 +51,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Facturas",
     icon: "bi-receipt-cutoff",
     visible: canAnalyzeInvoices,
+  },
+  {
+    href: "/suppliers",
+    label: "Proveedores",
+    icon: "bi-truck",
+    visible: canManageSuppliers,
   },
 ];
 
